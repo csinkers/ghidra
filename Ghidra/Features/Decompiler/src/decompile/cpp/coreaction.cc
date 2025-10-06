@@ -1057,6 +1057,93 @@ bool ActionConstantPtr::checkCopy(PcodeOp *op,Funcdata &data)
   return data.getArch()->infer_pointers;
 }
 
+SymbolEntry *getSymbolEntry(Address &rampoint, bool &needexacthit, Funcdata &data)
+{
+  if (rampoint.isInvalid())
+    return (SymbolEntry *)0;
+  // Since we are looking for a global address
+  // Assume it is address tied and use empty usepoint
+  SymbolEntry *entry = data.getScopeLocal()->getParent()->queryContainer(rampoint, 1, Address());
+  if (entry != (SymbolEntry *)0)
+  {
+    Datatype *ptrType = entry->getSymbol()->getType();
+    if (ptrType->getMetatype() == TYPE_ARRAY)
+    {
+      Datatype *ct = ((TypeArray *)ptrType)->getBase();
+      // In the special case of strings (character arrays) we allow the constant pointer to
+      // refer to the middle of the string
+      if (ct->isCharPrint())
+        needexacthit = false;
+    }
+    if (needexacthit && entry->getAddr() != rampoint)
+      return (SymbolEntry *)0;
+  }
+
+  return entry;
+}
+
+int8 isEntryMatch(SymbolEntry *entry, Address &rampoint, bool &isArray) {
+  int8 size = 0;
+  isArray = false;
+  if (entry != 0)
+  {
+    // If we found data at the specified address, use its size
+    size = entry->getSize();
+    auto dt = entry->getSizedType(Address(rampoint.getSpace(), 0), size);
+    if (dt != 0 && dt->getMetatype() == TYPE_ARRAY)
+    {
+      int8 tmp;
+      isArray = true;
+      size = dt->getSubType(0, &tmp)->getSize();
+    }
+  }
+
+  return size;
+}
+
+/// \brief Recursively search for additive constants and multiplicative constants
+///
+/// Walking backward from the given Varnode, search for constants being added in and return
+/// the sum of all the constants. Additionally pass back the biggest constant coefficient, for any term
+/// formed with INT_MULT.
+/// \param vn is the given root Varnode of the additive tree
+/// \param multiplier will hold the biggest constant multiplier or 0, if no multiplier is present
+/// \param maxLevel is the maximum depth to search in the tree
+/// \return the sum of all constants in the additive expression
+int8 ActionConstantPtr::getConstOffsetBack(Varnode *vn,int8 &multiplier,int4 maxLevel)
+
+{
+  multiplier = 0;
+  int8 submultiplier;
+  if (vn->isConstant())
+    return vn->getOffset();
+  if (!vn->isWritten())
+    return 0;
+  maxLevel -= 1;
+  if (maxLevel < 0)
+    return 0;
+  PcodeOp *op = vn->getDef();
+  OpCode opc = op->code();
+  int8 retval = 0;
+  if (opc == CPUI_INT_ADD) {
+    retval += getConstOffsetBack(op->getIn(0),submultiplier,maxLevel);
+    if (submultiplier > multiplier)
+      multiplier = submultiplier;
+    retval += getConstOffsetBack(op->getIn(1), submultiplier, maxLevel);
+    if (submultiplier > multiplier)
+      multiplier = submultiplier;
+  }
+  else if (opc == CPUI_INT_MULT) {
+    Varnode *cvn = op->getIn(1);
+    if (!cvn->isConstant()) return 0;
+    multiplier = cvn->getOffset();
+    getConstOffsetBack(op->getIn(0), submultiplier, maxLevel);
+    if (submultiplier > 0)
+      multiplier *= submultiplier;		// Only contribute to the multiplier
+  }
+  return retval;
+}
+
 /// \brief Determine if given Varnode might be a pointer constant.
 ///
 /// If it is a pointer, return the symbol it points to, or NULL otherwise. If it is determined
@@ -1126,7 +1213,6 @@ MapEntry *ActionConstantPtr::isPointer(AddrSpace *spc,Varnode *vn,PcodeOp *op,in
 	if (op->getIn(1-slot)->getTypeReadFacing(op)->getMetatype()==TYPE_PTR)
 	  return (MapEntry *)0; // If so, we are not a pointer
 	// FIXME: need to fully explore additive tree
-	needexacthit = false;
       }
       else if (!glb->infer_pointers)
 	return (MapEntry *)0;
@@ -1167,6 +1253,7 @@ MapEntry *ActionConstantPtr::isPointer(AddrSpace *spc,Varnode *vn,PcodeOp *op,in
       return (MapEntry *)0;
     }
   }
+
   return entry;
 }
 
