@@ -1057,14 +1057,14 @@ bool ActionConstantPtr::checkCopy(PcodeOp *op,Funcdata &data)
   return data.getArch()->infer_pointers;
 }
 
-SymbolEntry *getSymbolEntry(Address &rampoint, bool &needexacthit, Funcdata &data)
+MapEntry *getSymbolEntry(Address &rampoint, bool &needexacthit, Funcdata &data)
 {
   if (rampoint.isInvalid())
-    return (SymbolEntry *)0;
+    return (MapEntry *)0;
   // Since we are looking for a global address
   // Assume it is address tied and use empty usepoint
-  SymbolEntry *entry = data.getScopeLocal()->getParent()->queryContainer(rampoint, 1, Address());
-  if (entry != (SymbolEntry *)0)
+  MapEntry *entry = data.getScopeLocal()->getParent()->queryContainer(rampoint, 1, Address());
+  if (entry != (MapEntry *)0)
   {
     Datatype *ptrType = entry->getSymbol()->getType();
     if (ptrType->getMetatype() == TYPE_ARRAY)
@@ -1076,13 +1076,13 @@ SymbolEntry *getSymbolEntry(Address &rampoint, bool &needexacthit, Funcdata &dat
         needexacthit = false;
     }
     if (needexacthit && entry->getAddr() != rampoint)
-      return (SymbolEntry *)0;
+      return (MapEntry *)0;
   }
 
   return entry;
 }
 
-int8 isEntryMatch(SymbolEntry *entry, Address &rampoint, bool &isArray) {
+int8 isEntryMatch(MapEntry *entry, Address &rampoint, bool &isArray) {
   int8 size = 0;
   isArray = false;
   if (entry != 0)

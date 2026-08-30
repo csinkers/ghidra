@@ -433,7 +433,7 @@ void Funcdata::spacebaseConstant(PcodeOp *op,int4 slot,MapEntry *entry,const Add
         newUniqueOut(sz,negOp);
         opInsertBefore(negOp,op);
         Varnode *negconst = newConstant(sz, -datasize);
-        negconst->setPtrCheck();
+        negconst->setSymbolCheck(Varnode::symcheck_complete);
         opSetInput(negOp,outvn,0);
         opSetInput(negOp,negconst,1);
         outvn = negOp->getOut();
