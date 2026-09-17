@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en-us"><iframe class="cleanslate hidden" src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/commandline_B6zZ.htm" id="cmdline_iframe" style="height: 0px !important;"></iframe><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>RULECOMPILE - Undocumented Ghidra decompiler rule language // msm's home</title>
+<link rel="shortcut icon" href="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/avatar_B6zZ.png"><meta charset="utf-8"><meta name="author" content="msm"><meta name="description" content=""><link rel="stylesheet" href="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/main.min.7e01e0c6b400bf3fdfd32e3b9a870047a27ca3d0c567db_B6zZ.css"><style type="text/css">@media print {
+        .TridactylStatusIndicator {
+            display: none !important;
+        }
+    }</style></head><body><header class="app-header"><a href="https://msm.lt/"><img class="app-header-avatar" src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/avatar_B6zZ.png" alt="msm"></a><h1>msm's home</h1><nav class="app-header-menu"><a class="app-header-menu-item" href="https://msm.lt/">Home</a><br><a class="app-header-menu-item" href="https://msm.lt/publications/">Publications</a><br><a class="app-header-menu-item" href="https://msm.lt/challenges/">Challenges</a><br><a class="app-header-menu-item" href="https://msm.lt/tags/">Tags</a><br><a class="app-header-menu-item" href="https://msm.lt/about/">About</a><br><a class="app-header-menu-item" href="https://msm.lt/index.xml">Rss</a></nav><p>On the internet nobody knows you're a cat.</p></header><main class="app-container"><article class="post"><header class="post-header"><h1 class="post-title">RULECOMPILE - Undocumented Ghidra decompiler rule language</h1><div class="post-meta"><div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-calendar"><title>calendar</title><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+Dec 30, 2024</div><div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-clock"><title>clock</title><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+19 min read</div><div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tag"><title>tag</title><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83.0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+<a class="tag" href="https://msm.lt/tags/reverse-engineering/">Reverse-Engineering</a>
+<a class="tag" href="https://msm.lt/tags/ghidra/">Ghidra</a></div><div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-bookmark"><title>bookmark</title><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"></path></svg>
+<a href="https://msm.lt/">Home</a> /
+<a href="https://msm.lt/re/">Reverse Engineering</a> /
+<a href="https://msm.lt/re/ghidra/">Ghidra</a> /
+<a href="">RULECOMPILE - Undocumented Ghidra decompiler rule language</a></div></div></header><div class="post-content"><p>Or “How I got annoyed by a poor decompilation so I unearthed a hidden Ghidra feature”</p><p><em>TLDR: there is a (undocumented and disabled by default) feature in the Ghidra decompiler that
+lets you create your own decompiler passes, using a custom DSL. I leverage it to write a
+deobfuscation rule for a simple obfuscation technique.</em></p><ul><li><a href="#story-setup">Story Setup</a> - introduction and problem statement</li><li><a href="#decompiler-101">Decompiler 101</a> - building and using Ghidra decompiler directly</li><li><a href="#rulecompile">RULECOMPILE</a> - a curious #define flag from the decompiler source</li><li><a href="#a-forgotten-language-of-dragons">A forgotten language of dragons</a> - reverse-engineering a forgotten code pattern matching DSL</li><li><a href="#how-to-train-your-dragon">How to train your dragon</a> - how to write a rule that is actually useful</li><li><a href="#conclusion">Conclusion</a> - parting thoughts</li></ul><h2 id="story-setup">Story setup</h2><p>It all started with this one missed deobfuscation:</p><p><img src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/start_B6zZ.png" alt=""></p><p>Do you know what this function does? Take a few seconds to think about it, if you want.</p><p>…</p><p>…</p><p>Yes, this is just a simple incrementation. Consider the lowest bit of <code>param_1</code>:</p><ul><li>if <code>param1 &amp; 1</code> is 0, then <code>(param1 &amp; 1) * 2</code> is zero too, and <code>param1 ^ 1</code> is just <code>param1 + 1</code>.</li><li>if <code>param1 &amp; 1</code> is 1, then <code>(param1 &amp; 1) * 2</code> equals 2, but <code>param1 ^ 1</code> is now <code>param1 - 1</code>, so the result is <code>param1 + 1</code> again.</li></ul><p>What can we do to clean this up? There are several possible courses of action. Let’s consider them one by one:</p><h4 id="ignore-the-problem">Ignore the problem</h4><p>We can <strong>ignore the problem</strong> entirely and live with it - the pattern is easy to spot,
+and we already recognise it. This is probably the sanest option. As you may guess, I didn’t pursue it, though maybe I should.</p><h4 id="fix-it-with-a-script">Fix it with a script</h4><p>Maybe we can write a Ghidra script that will fix the decompilation?<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup> Well, no.
+Unfortunately, <strong>Ghidra is not very flexible when one wants to influence the decompiler</strong>.
+The decompiler is almost a blackbox that we can just
+nudge in the right directions. Almost all analysis happen in there:</p><ul><li>Raw bytes are disassembled and translated to Pcode using SLEIGH</li><li>Pcode is optimized and lifted to high Pcode<sup id="fnref:2"><a href="#fn:2" class="footnote-ref" role="doc-noteref">2</a></sup></li><li>High-level programing language structures - loops, conditionals, control flow - are recovered<sup id="fnref:3"><a href="#fn:3" class="footnote-ref" role="doc-noteref">3</a></sup></li><li>A tokenized version of decompiled source code is generated and sent back to Ghidra.</li></ul><p>With <a href="https://raw.githubusercontent.com/NationalSecurityAgency/ghidra/refs/heads/master/Ghidra/Features/Decompiler/src/main/help/help/topics/DecompilePlugin/DecompilerAnnotations.html">few exceptions</a>,
+none of these steps can be influenced by a script/extension/program annotations.</p><h4 id="patch-the-assembly-code">Patch the assembly code</h4><p>This one is actually doable - we can patch the binary assembly code and replace it that whols
+section with incrementation. But that has <strong>a lot of downsides</strong>:</p><ul><li>Our code is now architecture dependent - even though the rule is very generic, and Ghidra works with dozens of architectures thanks to PCode.</li><li>It may be very hard to match the obfuscation pattern - especially if the code we see is already a simplified version of the original, much more obfuscated code.</li><li>We have to patch the binary, which is invasive and may make the binary unrunnable.</li></ul><p><strong>In practice this is what I do</strong> when I have to, but I wish there was a better way.</p><h4 id="improve-the-decompiler-and-submit-a-pull-request">Improve the decompiler and submit a pull request</h4><p>In principle, this is the best option. Ghidra is <a href="https://github.com/NationalSecurityAgency/ghidra/">open-source</a>,
+so we can grab the source code, make our changes, and maybe submit a pull request.</p><p>The problem is that decompiler is a
+<a href="https://github.com/NationalSecurityAgency/ghidra/tree/master/Ghidra/Features/Decompiler/src/decompile/cpp">complex</a>
+piece of software, so that’s a non-trivial task. A large upside is that we can submit
+our changes to the official Ghidra repository as a pull request, so that <strong>everyone can benefit</strong> from them.
+Unfortunately, there’s not many people who can review such a pull request, so they
+tend to <a href="https://github.com/NationalSecurityAgency/ghidra/pull/6070">wait forever</a> for merging.
+So, unless you’re very dedicated, there is <strong>no way to share your improvements with the community</strong>.</p><p>What if there was an easier way?</p><h2 id="decompiler-101">Decompiler 101</h2><p>Let’s take a closer look at the decompiler. I didn’t get around to post about it yet<sup id="fnref:4"><a href="#fn:4" class="footnote-ref" role="doc-noteref">4</a></sup>,
+but long story short: there is a internal debugger tool, not build
+by default, that you can use to peek into the decompiler internals. It’s called
+<code>decomp_dbg</code>, and the best public source of information about it right now is
+<a href="https://www.nccgroup.com/us/research-blog/earlyremoval-in-the-conservatory-with-the-wrench-exploring-ghidra-s-decompiler-internals-to-make-automatic-p-code-analysis-scripts/">this nccgroup blog post</a>.
+and <a href="https://github.com/NationalSecurityAgency/ghidra/issues/720">this Github issue</a>.</p><p>I’ll update this section with a link to a more detailed post when/if I write it,
+but for now the point is that you can go to <code>Ghidra/Features/Decompiler/src/decompile/cpp</code>,
+run <code>make decomp_dbg</code>, and get a <code>decomp_dbg</code> binary. For this blog post, I will use the
+<a href="https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_11.2.1_build">ghidra 11.2.1 release</a>
+(Ghidra_11.1.2_build tag in the git repository).</p><p>Let’s try it. First, download this <a href="https://msm.lt/re/ghidra/rulecompile/obfuscated">obfuscated binary</a>.
+You can check it in Ghidra - the main function is just <code>return argc</code>,
+but obfuscated with the technique I mentioned above. There is an option
+to “debug function decompilation” in Ghidra, which we can use to analyse
+the decompilation process:</p><p><img src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/export_B6zZ.png" alt=""></p><p>But we won’t actually use it in this blog post<sup id="fnref:5"><a href="#fn:5" class="footnote-ref" role="doc-noteref">5</a></sup>. So let’s run <code>decomp_dbg</code> on the binary directly:</p><pre tabindex="0"><code>$ set -x SLEIGHHOME ~/opt/ghidra  # export SLEIGHHOME=... for bash users
+$ ./decomp_dbg
+[decomp]&gt; load file /home/you/xyz/obfuscated
+[decomp]&gt; load addr 0x0101129
+Low-level ERROR: Unable to load 512 bytes at r0x00101129
+Unable to proceed with function: func_0x00101129
+</code></pre><p>Wait, what? This worked for me before. After a quick look at the source code
+and a lucky guess, another try:</p><pre tabindex="0"><code>$ set -x SLEIGHHOME ~/opt/ghidra  # export SLEIGHHOME=... for bash users
+$ ./decomp_dbg
+[decomp]&gt; load file /home/you/xyz/obfuscated
+[decomp]&gt; adjust vma 0x100000
+[decomp]&gt; load addr 0x0101129
+Function func_0x00101129: 0x00101129
+</code></pre><p>Now we are free to decompile to our heart’s content:</p><pre tabindex="0"><code>[decomp]&gt; decompile
+Decompiling func_0x00101129
+Decompilation complete
+[decomp]&gt; print C
+
+int4 func_0x00101129(uint4 param_1)
+
+{
+  return (param_1 &amp; 1) * 2 + (param_1 ^ 1);
+}
+</code></pre><h2 id="rulecompile">RULECOMPILE</h2><p>This begs the question<sup id="fnref:6"><a href="#fn:6" class="footnote-ref" role="doc-noteref">6</a></sup>, what other features are possible? The list is in the
+<a href="https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Decompiler/src/decompile/cpp/ifacedecomp.cc">ifacedecomp.cc</a>
+file. But wait, what is this?</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="display:flex"><span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcLoadTestFile(), <span style="color:#e6db74">"load"</span>,<span style="color:#e6db74">"test"</span>,<span style="color:#e6db74">"file"</span>);
+</span></span><span style="display:flex"><span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcListTestCommands(), <span style="color:#e6db74">"list"</span>,<span style="color:#e6db74">"test"</span>,<span style="color:#e6db74">"commands"</span>);
+</span></span><span style="display:flex"><span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcExecuteTestCommand(), <span style="color:#e6db74">"execute"</span>,<span style="color:#e6db74">"test"</span>,<span style="color:#e6db74">"command"</span>);
+</span></span><span style="display:flex"><span><span style="color:#75715e">#ifdef CPUI_RULECOMPILE
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcParseRule(),<span style="color:#e6db74">"parse"</span>,<span style="color:#e6db74">"rule"</span>);
+</span></span><span style="display:flex"><span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcExperimentalRules(),<span style="color:#e6db74">"experimental"</span>,<span style="color:#e6db74">"rules"</span>);
+</span></span><span style="display:flex"><span><span style="color:#75715e">#endif
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span>  status<span style="color:#f92672">-&gt;</span>registerCom(<span style="color:#66d9ef">new</span> IfcContinue(),<span style="color:#e6db74">"continue"</span>);
+</span></span></code></pre></div><p><strong>Two commands are fenced behind a feature flag - undocumented and not enabled by default</strong>.
+As of today, googling <code>CPUI_RULECOMPILE</code> returns only three results,
+two of them are source code from the official Github and the last one from a source code mirror.<sup id="fnref:7"><a href="#fn:7" class="footnote-ref" role="doc-noteref">7</a></sup></p><p>Let’s try to enable it! Just add the flag to the makefile and build:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-diff" data-lang="diff"><span style="display:flex"><span>$ git diff
+</span></span><span style="display:flex"><span>diff --git a/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile b/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile
+</span></span><span style="display:flex"><span>index ead17e0..3946e17 100755
+</span></span><span style="display:flex"><span><span style="color:#f92672">--- a/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -38,7 +38,7 @@ endif
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span> CXX=g++ -std=c++11
+</span></span><span style="display:flex"><span>
+</span></span><span style="display:flex"><span> # Debug flags
+</span></span><span style="display:flex"><span><span style="color:#f92672">-DBG_CXXFLAGS=-g -Wall -Wno-sign-compare
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+DBG_CXXFLAGS=-g -Wall -Wno-sign-compare -DCPUI_RULECOMPILE
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span> #DBG_CXXFLAGS=-g -pg -Wall -Wno-sign-compare
+</span></span><span style="display:flex"><span> #DBG_CXXFLAGS=-g -fprofile-arcs -ftest-coverage -Wall -Wno-sign-compare
+</span></span><span style="display:flex"><span>$ make decomp_dbg -j 8
+</span></span></code></pre></div><p>Annnnd it doesn’t work - we get tons of compiler errors:</p><pre tabindex="0"><code>architecture.cc: In member function ‘void ghidra::Architecture::decodeDynamicRule(ghidra::Decoder&amp;)’:
+architecture.cc:729:57: error: ‘el’ was not declared in this scope
+  729 |   Rule *dynrule = RuleGeneric::build(rulename,groupname,el-&gt;getContent());
+In copy constructor ‘ghidra::Address::Address(const ghidra::Address&amp;)’,
+    inlined from ‘ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange::AddrRange(ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange&amp;&amp;)’ at rangemap.hh:76:9,
+    inlined from ‘void std::__new_allocator&lt;_Tp&gt;::construct(_Up*, _Args&amp;&amp; ...) [with _Up = ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange; _Args = {ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange}; _Tp = std::_Rb_tree_node&lt;ghidra::rangem
+ap&lt;ghidra::ScopeMapper&gt;::AddrRange&gt;]’ at /nix/store/4krab2h0hd4wvxxmscxrw21pl77j4i7j-gcc-13.3.0/include/c++/13.3.0/bits/new_allocator.h:191:4,
+    inlined from ‘static void std::allocator_traits&lt;std::allocator&lt;_CharT&gt; &gt;::construct(allocator_type&amp;, _Up*, _Args&amp;&amp; ...) [with _Up = ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange; _Args = {ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRa
+nge}; _Tp = std::_Rb_tree_node&lt;ghidra::rangemap&lt;ghidra::ScopeMapper&gt;::AddrRange&gt;]’ at /nix/store/4krab2h0hd4wvxxmscxrw21pl77j4i7j-gcc-13.3.0/include/c++/13.3.0/bits/alloc_traits.h:538:17,
+</code></pre><p>Apparently nobody tried to compile with this feature enabled in a long time. Let’s try to fix it.</p><p>First of all, we don’t have <code>ruleparse.cc</code> nor <code>ruleparse.hh</code> files, but we have <code>ruleparse.y</code>.
+For those of you who attended a compiler course, this is a YACC file and we can build it with bison:</p><pre tabindex="0"><code>$ make ruleparse.cc ruleparse.hh
+bison -p ruleparse -d -o ruleparse.cc ruleparse.y
+</code></pre><p>Then let’s hunt copilation errors one by one. I’ll spare you the boring details, and
+just show my ugly patch:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-diff" data-lang="diff"><span style="display:flex"><span>diff --git a/Ghidra/Features/Decompiler/src/decompile/cpp/architecture.cc b/Ghidra/Features/Decompiler/src/decompile/cpp/architecture.cc
+</span></span><span style="display:flex"><span>index 494d160..8ac2725 100755
+</span></span><span style="display:flex"><span><span style="color:#f92672">--- a/Ghidra/Features/Decompiler/src/decompile/cpp/architecture.cc
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/Ghidra/Features/Decompiler/src/decompile/cpp/architecture.cc
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -726,7 +726,7 @@ void Architecture::decodeDynamicRule(Decoder &amp;decoder)
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span>     throw LowlevelError("Dynamic rule has no group");
+</span></span><span style="display:flex"><span>   if (!enabled) return;
+</span></span><span style="display:flex"><span> #ifdef CPUI_RULECOMPILE
+</span></span><span style="display:flex"><span><span style="color:#f92672">-  Rule *dynrule = RuleGeneric::build(rulename,groupname,el-&gt;getContent());
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+  Rule *dynrule = RuleGeneric::build(rulename,groupname, (reinterpret_cast&lt;XmlDecode*&gt;(&amp;decoder))-&gt;getCurrentXmlElement()-&gt;getContent());
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span>   extra_pool_rules.push_back(dynrule);
+</span></span><span style="display:flex"><span> #else
+</span></span><span style="display:flex"><span>   throw LowlevelError("Dynamic rules have not been enabled for this decompiler");
+</span></span><span style="display:flex"><span>diff --git a/Ghidra/Features/Decompiler/src/decompile/cpp/rulecompile.cc b/Ghidra/Features/Decompiler/src/decompile/cpp/rulecompile.cc
+</span></span><span style="display:flex"><span>index fe8a413..f346ce9 100755
+</span></span><span style="display:flex"><span><span style="color:#f92672">--- a/Ghidra/Features/Decompiler/src/decompile/cpp/rulecompile.cc
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/Ghidra/Features/Decompiler/src/decompile/cpp/rulecompile.cc
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -14,14 +14,19 @@
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span>  * limitations under the License.
+</span></span><span style="display:flex"><span>  */
+</span></span><span style="display:flex"><span> #ifdef CPUI_RULECOMPILE
+</span></span><span style="display:flex"><span><span style="color:#f92672">-#include "rulecompile.hh"
+</span></span></span><span style="display:flex"><span><span style="color:#f92672">-#include "ruleparse.hh"
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+#include "types.h"
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+#include &lt;string&gt;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+using std::string;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+using namespace ghidra;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+int4 ruleparsedebug;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+extern int4 ruleparseparse(void);
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex"><span> namespace ghidra {
+</span></span><span style="display:flex"><span>
+</span></span><span style="display:flex"><span> RuleCompile *rulecompile;
+</span></span><span style="display:flex"><span><span style="color:#f92672">-extern int4 ruleparsedebug;
+</span></span></span><span style="display:flex"><span><span style="color:#f92672">-extern int4 ruleparseparse(void);
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span>
+</span></span><span style="display:flex"><span> class MyLoadImage : public LoadImage { // Dummy loadimage
+</span></span><span style="display:flex"><span> public:
+</span></span><span style="display:flex"><span>diff --git a/Ghidra/Features/Decompiler/src/decompile/cpp/ruleparse.y b/Ghidra/Features/Decompiler/src/decompile/cpp/ruleparse.y
+</span></span><span style="display:flex"><span>index 3d3ced6..32f42ff 100755
+</span></span><span style="display:flex"><span><span style="color:#f92672">--- a/Ghidra/Features/Decompiler/src/decompile/cpp/ruleparse.y
+</span></span></span><span style="display:flex"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/Ghidra/Features/Decompiler/src/decompile/cpp/ruleparse.y
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -15,11 +15,19 @@
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"></span>  */
+</span></span><span style="display:flex"><span> %{
+</span></span><span style="display:flex"><span> #ifdef CPUI_RULECOMPILE
+</span></span><span style="display:flex"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+#include "types.h"
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+#include &lt;string&gt;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+using std::string;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span> #include "rulecompile.hh"
+</span></span><span style="display:flex"><span>
+</span></span><span style="display:flex"><span> #define YYERROR_VERBOSE
+</span></span><span style="display:flex"><span>
+</span></span><span style="display:flex"><span><span style="color:#a6e22e">+using namespace ghidra;
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e">+namespace ghidra {
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span> extern RuleCompile *rulecompile;
+</span></span><span style="display:flex"><span><span style="color:#a6e22e">+}
+</span></span></span><span style="display:flex"><span><span style="color:#a6e22e"></span> extern int ruleparselex(void);
+</span></span><span style="display:flex"><span> extern int ruleparseerror(const char *str);
+</span></span></code></pre></div><p>NB: these are just hacks to make it compile, not a proper fix.</p><p>Anyway, with these fixes we can compile <code>decomp_dbg</code> and run it:</p><pre tabindex="0"><code>$ set -x SLEIGHHOME ~/opt/ghidra  # export SLEIGHHOME=... for bash users
+$ ./decomp_dbg
+[decomp]&gt; experimental rules
+Command parsing error: Missing name of file containing experimental rules
+</code></pre><p>Ok… now what?</p><h4 id="into-the-xml-hell">Into the XML hell</h4><p>Since there’s no documentation, we have to figure out how to use this by reading
+the source code. I’ll focus on the <code>experimental rules</code> command (it is used
+to load and enable the decompiler rules). If we try to load a random file, we get a syntax error:</p><pre tabindex="0"><code>[decomp]&gt; experimental rules /etc/passwd
+Successfully registered experimental file /etc/passwd
+[decomp]&gt; [decomp]&gt; load file /home/you/xyz/obfuscated
+ERROR: Invalid command
+[decomp]&gt; load file /home/you/xyz/obfuscated
+Trying to parse /etc/passwd for experimental rules
+syntax error
+Skipping experimental rules
+/home/you/xyz/obfuscated successfully loaded: Intel/AMD 64-bit x86
+</code></pre><p>Let’s dig into a source code:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="display:flex"><span><span style="color:#f92672">*</span>status<span style="color:#f92672">-&gt;</span>optr <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">"Trying to parse "</span> <span style="color:#f92672">&lt;&lt;</span> dcp<span style="color:#f92672">-&gt;</span>experimental_file <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">" for experimental rules"</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex"><span><span style="color:#66d9ef">try</span> {
+</span></span><span style="display:flex"><span>   Element <span style="color:#f92672">*</span>root <span style="color:#f92672">=</span> store.openDocument(dcp<span style="color:#f92672">-&gt;</span>experimental_file)<span style="color:#f92672">-&gt;</span>getRoot();
+</span></span><span style="display:flex"><span>   <span style="color:#66d9ef">if</span> (root<span style="color:#f92672">-&gt;</span>getName() <span style="color:#f92672">==</span> <span style="color:#e6db74">"experimental_rules"</span>) store.registerTag(root);
+</span></span></code></pre></div><p>OK, so we need XML. By digging further, we deduce that the file should look like this:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-xml" data-lang="xml"><span style="display:flex"><span><span style="color:#f92672">&lt;experimental_rules&gt;</span>
+</span></span><span style="display:flex"><span>    <span style="color:#f92672">&lt;rule</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">"rule_name"</span> <span style="color:#a6e22e">group=</span><span style="color:#e6db74">"group_name"</span> <span style="color:#a6e22e">enable=</span><span style="color:#e6db74">"true"</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex"><span>      ???
+</span></span><span style="display:flex"><span>    <span style="color:#f92672">&lt;/rule&gt;</span>
+</span></span><span style="display:flex"><span><span style="color:#f92672">&lt;/experimental_rules&gt;</span>
+</span></span></code></pre></div><p>Rule name is arbitrary, and group may be <code>analysis</code> for example (this determines when
+our rule gets to execute). But what do we put inside? We have to read the YACC grammar to understand the syntax. The grammar,
+untouched since the initial Ghidra release, is
+<a href="https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Decompiler/src/decompile/cpp/ruleparse.y">here</a>.
+It should look familiar if you ever wrote a BNF parser. For example,</p><pre tabindex="0"><code>fullrule: '{' statementlist actionlist '}'
+</code></pre><p>Means that the full rule consists of a literal <code>{</code> followed by a <code>statementlist</code> followed by an <code>actionlist</code>
+followed by a literal <code>}</code>. Similarly, we can investigate <code>statementlist</code> and <code>actionlist</code>, and so on.</p><p>There is one thing that can help us - <strong>a comment left in rulecompile.hh</strong>:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="display:flex"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Definition of the language
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Identifiers start with 'o' for named pcodeops
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">                         'v' for named varnodes
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">                         '#' for named constants
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  A "statement" is a sequence of "steps", ending in a semicolon
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Steps are sequential, proceeding left to right.  Each step is either a
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  building step (which defines a new entity in terms of an existing entity), or a
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  constraint (which forces a condition to be true)
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Building steps:
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o -&gt; v                v is the output of o
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o1 -&gt; o2              o2 is a (named) copy of o1
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o &lt;- v                v is ANY input of o
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o &lt;-(0) v             v is input 0 of o
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o &lt;-(1) #c            input 1 to o is a constant (now named c)
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o &lt;-(1) #0            input 1 to o is a constant with value 0
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v &lt;- o                o is the defining op of v
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v -&gt; o                o is ANY of the ops taking v as an input (may be inefficient)
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v -&gt;! o               o is the one and only op taking v as input
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v1 -&gt; v2              v2 is a (named) copy of v1
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Constraints:
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o(+)                  o must have an opcode equal '+'
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o1(== o2)             o1 and o2 must be the same pcode op
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  o1(!= o2)             o1 and o2 must not be the same pcode op
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v1(== v2)             v1 and v2 must be the same varnode
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  v1(!= v2)             v1 and v2 must not be the same varnode
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  Statements can be grouped (into "statementlist") with parentheses '(' and ')'
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  There is an OR operator
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  '['   statementlist
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">      | statementlist
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">      ...
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">  ']'
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">
+</span></span></span><span style="display:flex"><span><span style="color:#75715e"> */</span>
+</span></span></code></pre></div><p>That comment is not wrong, but it’s also incomplete. How do we actually create a complete rule? Let’s dig in deeper.</p><h2 id="a-forgotten-language-of-dragons">A forgotten language of dragons</h2><p>First things first. We already know that</p><pre tabindex="0"><code class="language-yacc" data-lang="yacc">fullrule: '{' statementlist actionlist '}'
+</code></pre><p>An abridged version of other important parts of the grammar (with C++ snippets removed) is:</p><pre tabindex="0"><code class="language-yacc" data-lang="yacc">statement: opnode ';' { ... }
+   | varnode ';' { ... }
+   | deadnode ';' { ... }
+   | '[' orgroupmid ']' { ... }
+   | '(' statementlist ')' { ... }
+
+opnode: op_ident { ... }
+   | opnode '(' op_list ')' { ... }
+   ...;
+
+varnode: var_ident { ... }
+   | opnode LEFT_ARROW '(' INTB ')' var_ident { ... }
+   | opnode LEFT_ARROW var_ident { ... }
+   | opnode RIGHT_ARROW var_ident { ... }
+   | varnode '(' OP_INT_EQUAL var_ident ')' { ... }
+   ...;
+
+deadnode: opnode LEFT_ARROW '(' INTB ')' rhs_const { ... }
+   | opnode  '=' op_ident  { ... }
+   ...;
+
+actionlist: ACTION_TICK { ... }
+   | actionlist action { ... };
+
+action: opnewnode ';' { ... }
+   | varnewnode ';' { ... }
+   | deadnewnode ';' { ... };
+
+varnewnode: opnewnode DOUBLE_LEFT_ARROW '(' rhs_const ')' var_ident { ... }
+   ...;
+
+deadnewnode: opnewnode DOUBLE_LEFT_ARROW '(' rhs_const ')' rhs_const var_size { ... }
+   ...;
+</code></pre><p>So we have statements followed by ACTION_TICK followed by actions, and they both consist of
+“opnodes”, “varnodes” and “deadnodes”. The high-level structure of the experimental rule file is therefore:</p><pre tabindex="0"><code>{
+   statements
+   --
+   actions
+}
+</code></pre><p>And the possible statements are (among many others)</p><ul><li>Opnodes: <code>o1</code>, <code>o1(+)</code>, …</li><li>Varnodes: <code>o1 &lt;- v1</code>, <code>o1 &lt;-(1) v1</code>, <code>o1 -&gt; v1</code>, <code>v1(== v2)</code></li><li>Deadnodes: <code>o1 &lt;-(1) 123</code>, <code>o1 = o2</code>, …</li></ul><p>And for the actions (among many others):</p><ul><li>Opnewnodes: <code>o1</code></li><li>Varnewnodes: <code>o1 &lt;--(1) v1</code></li><li>Deadnewnodes: <code>o1 &lt;--(1) 123 4</code></li></ul><p>Now that <em>still</em> doesn’t explain how to use it, but at least we can make <strong>a file that we can parse</strong>:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-xml" data-lang="xml"><span style="display:flex"><span><span style="color:#f92672">&lt;experimental_rules&gt;</span>
+</span></span><span style="display:flex"><span>   <span style="color:#f92672">&lt;rule</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">"rule_name"</span> <span style="color:#a6e22e">group=</span><span style="color:#e6db74">"group_name"</span> <span style="color:#a6e22e">enable=</span><span style="color:#e6db74">"true"</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex"><span>   {
+</span></span><span style="display:flex"><span>      o1(+) -&gt; v1;
+</span></span><span style="display:flex"><span>      o2;
+</span></span><span style="display:flex"><span>      o3;
+</span></span><span style="display:flex"><span>      --
+</span></span><span style="display:flex"><span>      o2 &amp;lt; v1;
+</span></span><span style="display:flex"><span>   }
+</span></span><span style="display:flex"><span>   <span style="color:#f92672">&lt;/rule&gt;</span>
+</span></span><span style="display:flex"><span><span style="color:#f92672">&lt;/experimental_rules&gt;</span>
+</span></span></code></pre></div><p>And it does parse:<sup id="fnref:8"><a href="#fn:8" class="footnote-ref" role="doc-noteref">8</a></sup></p><pre tabindex="0"><code>[decomp]&gt; experimental rules /home/you/xyz/test.xml
+Successfully registered experimental file /home/you/xyz/test.xml
+[decomp]&gt; load file /home/you/xyz/obfuscated
+Trying to parse /home/you/xyz/test.xml for experimental rules
+Unable to parse dynamic rule: rule_name
+Could not create architecture
+[decomp]&gt; adjust vma 0x100000
+Execution error: No load image present
+[decomp]&gt; load addr 0x0101129
+fish: Process 914812, './decomp_dbg' from job 1, './decomp_dbg' terminated by signal SIGSEGV (Address boundary error)
+</code></pre><p>Well, it’s not perfect yet, but we’re getting there.</p><h2 id="how-to-train-your-dragon">How to train your dragon</h2><p>Now the fun part. After reading the code and debugging segfaults (lots of segfaults<sup id="fnref:9"><a href="#fn:9" class="footnote-ref" role="doc-noteref">9</a></sup>) with gdb, I
+figured out the rules:</p><ul><li><strong>Statements</strong> describe what we want to match</li><li><strong>Actions</strong> describe how we want to transform the matched AST.</li><li><strong>Opnodes</strong> are the (pcode) operations we want to optimize</li><li><strong>Varnodes</strong> are, well, varnodes - the operands pcode operations take</li><li><strong>Deadnodes</strong> are not actually dead operations, they perform operations on defined varnodes and opnodes.</li></ul><p>So in the <strong>statement section</strong>, we can write for example:</p><ul><li><code>o1</code> - match any operation (and name it <code>o1</code>).</li><li><code>o1(+)</code> - match any addition operation (and name it <code>o1</code>).</li><li><code>v1</code> - match any varnode (value) (and name it <code>v1</code>).</li><li><code>v1(==v2)</code> - match any varnode <code>v1</code>, as long as it’s equal to <code>v2</code>.</li><li><code>o1 &lt;- v1</code> - match any operation <code>o1</code>, with <code>v1</code> being any of its operands.</li><li><code>o1 &lt;-(0) v1</code> - match any operation <code>o1</code>, with <code>v1</code> being the first operand.</li><li><code>o1(+) &lt;- v1</code> - match any addition operation <code>o1</code>, with <code>v1</code> being any of the oprands.</li><li><code>o1 &lt;-(1) 123</code> - match any addition operation <code>o1</code>, with 123 being the second operand.</li><li><code>o1 &lt;- v2 &lt;- o3</code> - match any operation <code>o1</code>, with <code>v1</code> being any of its operands, and <code>o3</code> using <code>v1</code>.</li></ul><p>And so on. In the <strong>action section</strong> we define how we want to transform the AST, so for example:</p><ul><li><code>o1 &lt;--(0) v1</code> - make <code>v1</code> the first operand of <code>o1</code>.</li><li><code>o1 &lt;--(1) 42</code> - make <code>42</code> the second operand of <code>o1</code>.</li></ul><p>There’s more, for example we can match on more complex conditions or create new nodes in the action section,
+but we won’t need that for this blog post. So <strong>a very simple rule</strong> that is not a NOP is:</p><pre tabindex="0"><code>{
+   o1(+);
+   --
+   o1 &lt;-- (0) 0;
+   o1 &lt;-- (1) 0;
+}
+</code></pre><p>Literally: “match any addition operation <code>o1</code>, and replace both operands with 0”. Let’s try it on our program:</p><pre tabindex="0"><code>$ decomp_dbg
+...
+[decomp]&gt; decompile
+Decompiling func_0x00101129
+Decompilation complete
+[decomp]&gt; print C
+xunknown8 func_0x00101129(void)
+{
+  xRam0000000000000000 = 0;
+  return 0;
+}
+</code></pre><p>Great! As expected, the code simplified greatly (since we just removed all additions from our program).
+Getting to that point was tough, but now that we understand what’s going on it’s getting much easier.</p><p>Let’s go back to the original obfuscation and try to match the whole operation:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="display:flex"><span>int4 <span style="color:#a6e22e">main</span>(uint4 param_1) {
+</span></span><span style="display:flex"><span>  <span style="color:#66d9ef">return</span> (param_1 <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">*</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">+</span> (param_1 <span style="color:#f92672">^</span> <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex"><span>}
+</span></span></code></pre></div><p>We have several constraints:</p><ul><li>The root of the AST tree that we want to match is a <code>+</code> operation.</li><li>One of <code>+</code> operands should be <code>^</code></li><li>The other operand of <code>+</code> must be <code>*</code></li><li>And the other operand of <code>+</code> must be <code>&amp;</code></li></ul><p>Let’s try to model this using our grammar knowledge:</p><pre tabindex="0"><code>{
+   o_plus(+) &lt;- v1 &lt;- o_mul(*) &lt;- v2 &lt;- o_and(&amp;);
+   o_plus(+) &lt;- v4 &lt;- o_xor(^);
+   --
+   o_plus &lt;-- (0) 0;
+   o_plus &lt;-- (1) 0;
+}
+</code></pre><p>For the action I still use the “zero everything rule”, to make sure the rule still matches. And it does:</p><pre tabindex="0"><code>$ decomp_dbg
+...
+[decomp]&gt; print C
+xunknown8 func_0x00101129(void)
+{
+  xRam0000000000000000 = 0;
+  return 0;
+}
+</code></pre><p>We’re not done yet - we don’t check the constants or variables anywhere, so our rule will also match <code>(a &amp; 123) * 13 + (b ^ 123)</code> for example.
+That’s not what we want. Let’s fix it. There are probably more elegant ways to achieve this, but I did this in the simplest way I could think of:</p><pre tabindex="0"><code>{
+   o_plus(+) &lt;- v1 &lt;- o_mul(*) &lt;- v2 &lt;- o_and(&amp;);
+   o_plus(+) &lt;- v4 &lt;- o_xor(^);
+   [ o_xor &lt;-(0) 1; o_xor &lt;-(1) vin; | o_xor &lt;-(1) 1; o_xor &lt;-(0) vin; ]
+   [ o_and &lt;-(0) 1; o_and &lt;-(1) vin; | o_and &lt;-(1) 1; o_and &lt;-(0) vin; ]
+   [ o_mul &lt;-(0) 2; | o_mul &lt;-(1) 2; ]
+   --
+   o_plus &lt;-- (0) 0;
+   o_plus &lt;-- (1) 0;
+}
+</code></pre><p>This uses the “or” syntax that I didn’t mention before - <code>[ ... | ... ]</code>. This means that either the first or the second
+statement must match. This rule checks our constraints case by case. For example, <code>[ o_xor &lt;-(0) 1; o_xor &lt;-(1) vin; | o_xor &lt;-(1) 1; o_xor &lt;-(0) vin; ]</code>
+means that either first parameter to <code>o_xor</code> is <code>1</code>, and the second parameter is <code>vin</code>, or the first parameter is <code>vin</code> and the second is <code>1</code>.</p><p>After verifying that this still matches our code, we can replace the “zero everything” action: We want to change the operation to
+incrementation, i.e. <code>x + 1</code>. So we want a <code>+</code> operating with one parameter equal to 1, and the other equal to the matched varnode.
+Fortunately our top-level opration is already addition, so we just need to replace operands:</p><pre tabindex="0"><code>{
+   o_plus(+) &lt;- v1 &lt;- o_mul(*) &lt;- v2 &lt;- o_and(&amp;);
+   o_plus(+) &lt;- v4 &lt;- o_xor(^);
+   [ o_xor &lt;-(0) 1; o_xor &lt;-(1) vin; | o_xor &lt;-(1) 1; o_xor &lt;-(0) vin; ]
+   [ o_and &lt;-(0) 1; o_and &lt;-(1) vin; | o_and &lt;-(1) 1; o_and &lt;-(0) vin; ]
+   [ o_mul &lt;-(0) 2; | o_mul &lt;-(1) 2; ]
+   --
+   o_plus &lt;-- (0) vin;
+   o_plus &lt;-- (1) 1;
+}
+</code></pre><p>A hand-painted artisanal version of the final rule:</p><p><img src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/cpui_colored_B6zZ.png" alt=""></p><p>And… that’s it! We can verify that our works correctly now:</p><pre tabindex="0"><code>[decomp]&gt; print C
+int4 func_0x00101129(int4 param_1) {
+  return (int4)(param_1 + 1);
+}
+</code></pre><p>The full rule is, including the XML boilerplate is<sup id="fnref:10"><a href="#fn:10" class="footnote-ref" role="doc-noteref">10</a></sup>:</p><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-xml" data-lang="xml"><span style="display:flex"><span><span style="color:#f92672">&lt;experimental_rules&gt;</span>
+</span></span><span style="display:flex"><span>    <span style="color:#f92672">&lt;rule</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">"obfuscated_increment"</span> <span style="color:#a6e22e">group=</span><span style="color:#e6db74">"analysis"</span> <span style="color:#a6e22e">enable=</span><span style="color:#e6db74">"true"</span><span style="color:#f92672">&gt;</span><span style="color:#75715e">&lt;![CDATA[
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">    {
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        o_plus(+) &lt;- v1 &lt;- o_mul(*) &lt;- v2 &lt;- o_and(&amp;);
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        o_plus(+) &lt;- v4 &lt;- o_xor(^) &lt;- vin0;
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        [ o_xor &lt;-(0) 1; o_xor &lt;-(1) vin(==vin0); | o_xor &lt;-(1) 1; o_xor &lt;-(0) vin(==vin0); ]
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        [ o_and &lt;-(0) 1; o_and &lt;-(1) vin(==vin0); | o_and &lt;-(1) 1; o_and &lt;-(0) vin(==vin0); ]
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        [ o_mul &lt;-(0) 2; | o_mul &lt;-(1) 2; ]
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        --
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        o_plus &lt;-- (0) vin;
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">        o_plus &lt;-- (1) 1;
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">    }
+</span></span></span><span style="display:flex"><span><span style="color:#75715e">    ]]&gt;</span><span style="color:#f92672">&lt;/rule&gt;</span>
+</span></span><span style="display:flex"><span><span style="color:#f92672">&lt;/experimental_rules&gt;</span>
+</span></span></code></pre></div><p>And the commands to use it:</p><pre tabindex="0"><code>experimental rules /home/you/xyz/rules.xml
+load file /home/you/xyz/obfuscated
+adjust vma 0x100000
+load addr 0x0101129
+decompile
+print C
+</code></pre><p>Procedure to apply our rules to the Ghidra UI is slightly different (we need to patch ghidra_process.cc and build.gradle
+instead of consolemain.cc and Makefile), but the idea is the same. You can get the patch which makes decompiler use
+<code>/etc/ghidra-rules.xml</code> <a href="https://msm.lt/re/ghidra/rulecompile/ghidra.patch">here</a>. Happy hacking.</p><p><img src="RULECOMPILE%20-%20Undocumented%20Ghidra%20decompiler%20rule%20language_files/after_B6zZ.png" alt=""></p><h2 id="conclusion">Conclusion</h2><p>So that’s it, <strong>we created a simple deobfuscation rule for Ghidra decompiler</strong>. Since it’s
+an independent file, you can easily share it with your friends and family - just
+send them an XML file and they can use it.</p><p>As long as they also use your modified version of Ghidra with rules compiled in, of course.</p><p>What are the next steps? Frankly, I don’t think there are any. Clearly a lot of work was put into this rule engine,
+including a custom DSL and AST matcher. But this feature sits in the current
+state for at least 5 years, and I don’t think Ghidra devs will agree to enable it by default - even if I submitted a PR.
+It was disabled for a reason.</p><p>That would be nice of course - I work with obfuscated code often, and I would love an <a href="https://github.com/NationalSecurityAgency/ghidra/discussions/5227#discussioncomment-5635776">easier way to extend Ghidra decompiler</a><sup id="fnref:11"><a href="#fn:11" class="footnote-ref" role="doc-noteref">11</a></sup>.
+But nowadays I think I would just <strong>let plugins register their own hooks</strong> and do arbitrary transformations on PCode with Java or Python code. I’m not sure if that’s doable, but one can dream.</p><br><br><br><p><em>Btw: if you use Ghidra, check out my related open-source projects: <a href="https://github.com/msm-code/ghidralib">ghidralib</a>,
+a Pythonic standard library for Ghidra, and <a href="https://github.com/msm-code/GhidraCtrlP">CtrlP</a>, a quick search and
+command palette plugin.</em></p><div class="footnotes" role="doc-endnotes"><hr><ol><li id="fn:1"><p>Or can we? If there is a way, please let me know. It doesn’t invalidate the journey I’ve described in the rest of the post.&nbsp;<a href="#fnref:1" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:2"><p>This is not the official term, but it’s a good name for transformed Pcode.
+The samentics and amount of available information chanes drastically.&nbsp;<a href="#fnref:2" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:3"><p>One day I will figure out how to force Ghidra to generate proper switches.&nbsp;<a href="#fnref:3" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:4"><p>I plan to document more obscure/obscurish Ghidra features in the future, though.&nbsp;<a href="#fnref:4" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:5"><p>But if you want to load the exported XML, the commands are <code>restore /path/to/file.xml</code> and <code>load function yourfunction</code>.&nbsp;<a href="#fnref:5" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:6"><p>Someone told me this usage is incorrect, but <a href="https://dictionary.cambridge.org/dictionary/english/beg-the-question">cambridge dictionary</a> disagrees.&nbsp;<a href="#fnref:6" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:7"><p>To be fair, I recall that one user on Github mentioned in discussion that this
+feature exist, and that they managed to compile it but had no success with it. That
+still doesn’t count as an official documentation.&nbsp;<a href="#fnref:7" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:8"><p>I’ve wasted SO MUCH time on that <code>&amp;lt;</code>. The decompiler is not very talkative, so I was just getting random syntax errors on a few varnode types.&nbsp;<a href="#fnref:8" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:9"><p>I wonder if the instability is the reason why this feature was never enabled or officially documented.&nbsp;<a href="#fnref:9" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:10"><p>You may notice there is a small difference to the previous version - <code>&lt;- vin0</code> and <code>(==vin0)</code>. I decided to play it safe, because I’m not 100%
+sure how term unification works in this language.&nbsp;<a href="#fnref:10" class="footnote-backref" role="doc-backlink">↩︎</a></p></li><li id="fn:11"><p>Also a low-level p-code in SSA form <a href="https://github.com/NationalSecurityAgency/ghidra/discussions/5573#discussioncomment-6520456">link</a>
+<a href="https://github.com/NationalSecurityAgency/ghidra/discussions/5137">link</a>. And a C AST exposed to scripts
+<a href="https://github.com/NationalSecurityAgency/ghidra/discussions/4086">link</a>. And a pony.&nbsp;<a href="#fnref:11" class="footnote-backref" role="doc-backlink">↩︎</a></p></li></ol></div></div><div class="post-footer"></div></article></main><span class="cleanslate TridactylStatusIndicator  TridactylModenormal">normal</span></body></html>
