@@ -197,6 +197,7 @@ int main(int argc,char **argv)
       if (sleighhomepath == (const char*) 0) {
 	if (extrapaths.empty()) {
 	  cerr << "Could not discover root of Ghidra installation" << endl;
+	  cerr << "Set the SLEIGHHOME environment variable to your Ghidra root" << endl;
 	  exit(1);
 	}
       }
